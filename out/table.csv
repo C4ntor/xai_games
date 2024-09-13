@@ -1,0 +1,5 @@
+players-values,"f(g,d)",admitted,convex_game,superadditive_game,exact_shapley,exact_banzhaf,lp_core,core_set,nucleolus,kernel,nash_barg_sol,weight_nash_barg_sol
+"{'g': 1, 'd': -1}",2,True,True,True,"[2.0, 0.0]","[2.0, 0.0]",Multiple solutions,"[[2.0, 0.0], [1.0, 1.0], [3.0, -1.0]]",0,ERR,[1. 1.],[1. 1.]
+"{'g': -1, 'd': 1}",2,True,True,True,"[0.0, 2.0]","[0.0, 2.0]",Multiple solutions,"[[1.0, 1.0], [-1.0, 3.0]]",0,ERR,[1. 1.],[0.6000162 1.3999838]
+"{'g': 1, 'd': 1}",0,False,False,False,"[0.0, 0.0]","[0.0, 0.0]",Infeasible,[],0,ERR,ERR:Positive directional derivative for linesearch,ERR:Positive directional derivative for linesearch
+"{'g': -1, 'd': -1}",-4,False,False,False,"[-2.0, -2.0]","[-2.0, -2.0]",Infeasible,[],0,ERR,ERR:Iteration limit reached,ERR:Iteration limit reached
