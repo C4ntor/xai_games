@@ -1,16 +1,23 @@
 import itertools
 import random
+import numpy as np
+import pandas as pd
 random.seed(0)
+
 
 class GrandCoalition:
     """
     Creates the all-players coalition for the game. Following the order of features in input row, it assigns at each feature an index, and inizializes an hashmap between player indices and associated feature value
     (indices are between 0 and n-1) where n is the number of players
     """
-    def __init__(self, x):
+    def __init__(self, x, X_train):
         self.xN = {i: value for i, value in enumerate(x)}
         self.N = set(self.xN.keys())
         self.size = len(self.N)
+        self.X_train = X_train
+
+    def sample_from_tr_distr(self, i):
+        return np.random.choice(self.X_train[self.xN[i]])
 
 class Game:
     """
@@ -26,8 +33,10 @@ class Game:
         @disagreement_point: (vector)  used in Bargaining Problems. Contains utilities/payoff values of each player, whenever an agreement between player is not reached. 
     """
 
-    def __init__(self, x, payoff_function, disagreement_point=None) -> None:
-        self.grandcoalition = GrandCoalition(x)
+    def __init__(self, x, payoff_function, f_train_mean, X_train, disagreement_point=None) -> None:
+        self.grandcoalition = GrandCoalition(x, X_train)
+        self.obs = x
+        self.f_train_mean = f_train_mean
         #The input size accepted by v, must match all player coalition 
         self._payoff_function = payoff_function  #maybe another layer of abstraction to handle missing features?
         if disagreement_point ==None:
@@ -46,13 +55,19 @@ class Game:
             @mode:  (int)       can be 0 or 1. If 0, will put excluded feature values to 0. If 1 will replace it with random values.
 
         """
+        #for testing purpose we force mode=1
+        mode=1
+
         #we assume that excluding features means put excluded feature values to 0  (mode=0)
-        vector =  [0] * self.grandcoalition.size
+        if mode==0:
+            vector =  [0] * self.grandcoalition.size
+        else:
+            vector =  [0] * self.grandcoalition.size
+            for i in self.grandcoalition.N:
+                vector[i] = self.grandcoalition.sample_from_tr_distr(i) #sample randomly from training distr of var i
+
         for i in coalition:
-                if mode==0:
-                    vector[i] = self.grandcoalition.xN[i] 
-                if mode==1:
-                    vector[i] = random.random()
+                    vector[i] = self.grandcoalition.xN[i]  #replace present feature with their actual values from current obs
         return vector
 
     def v(self, coalition, mode=0):
@@ -66,11 +81,30 @@ class Game:
             @mode:  (int)
 
         """
-        #ASSUMPTION: what does it mean to have v({}) in ML? We assume that v(empty_set)=0
+        #ASSUMPTION: what does it mean to have v({}) in ML? We assume that v(empty_set)=E(f(x))
         if len(coalition)==0:
-            return 0
-        input_size_n = self.build_input_n(coalition, mode)    
-        return self._payoff_function(input_size_n)
+            return self.f_train_mean
+        input_size_n = self.build_input_n(coalition, mode) 
+        #replace labels values with actual values in the observation   
+        Y = [0]*len(input_size_n)
+
+
+        for i, label in enumerate(input_size_n):
+            if isinstance(self.obs, pd.DataFrame):  # If it's a DataFrame
+                if label in list(self.obs.columns):
+                    Y[i]= self.obs[label].values[0]
+                    # Do something for DataFrame case
+            elif isinstance(self.obs, pd.Series):  # If it's a Series
+                if label in self.obs.index:
+                    print(self.obs)
+                    exit()
+        
+        Y = pd.Series(Y)
+
+        labels = [self.grandcoalition.xN[i] for i in range(len(Y))]
+        Y.index = labels
+        Y = Y.values.reshape(1, -1)
+        return self._payoff_function(Y)
 
    
 
