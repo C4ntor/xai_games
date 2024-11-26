@@ -4,6 +4,8 @@ import numpy as np
 import pulp
 import random
 from scipy.optimize import minimize
+from scipy.optimize import linprog
+from itertools import combinations
 random.seed(0)
 
 def shapley_value(game):
@@ -176,9 +178,138 @@ def nash_barg_solution(game, alpha):
 
 
 
-def kernel(game):
-    prob = pulp.LpProblem("Kernel", pulp.LpMinimize)
+
+def compute_excess(v, x, S):
+    """Compute the excess for coalition S."""
+    return v(S) - sum(x[i] for i in S)
+
+def kernel(game, epsilon=1e-6, max_iter=1000):
+    """
+    Find the kernel of an n-player cooperative game.
+    
+    Parameters:
+    - n: Number of players
+    - v: Characteristic function (function accepting subsets as tuples)
+    - epsilon: Convergence tolerance
+    - max_iter: Maximum number of iterations
+    
+    Returns:
+    - Payoff vector x in the kernel
+    """
+    # Initialize x equally
     n = game.grandcoalition.size
-    x = pulp.LpVariable.dicts("x", (range(n), range(n)), lowBound=0, cat='Continuous')
-    return "ERR"
+    v = game.v
+    x = np.full(n, v(tuple(range(n))) / n)
+    
+    for iteration in range(max_iter):
+        balanced = True
         
+        # Iterate over all pairs of players
+        for i in range(n):
+            for j in range(i+1, n):
+                # Compute maximum excesses for i->j and j->i
+                e_ij = max(compute_excess(v, x, S) for S in powerset(range(n)) if i in S and j in S)
+                e_ji = max(compute_excess(v, x, S) for S in powerset(range(n)) if i in S and j in S)
+                
+                # If excesses are unbalanced, adjust payoffs
+                if abs(e_ij - e_ji) > epsilon:
+                    balanced = False
+                    delta = (e_ij - e_ji) / 2
+                    x[i] -= delta
+                    x[j] += delta
+        
+        if balanced:
+            break
+    
+    return x
+
+def powerset(iterable):
+    """Generate all subsets of a given set."""
+    s = list(iterable)
+    return [tuple(comb) for r in range(len(s)+1) for comb in combinations(s, r)]
+
+
+def nucleolus(game):
+    """
+    Compute the nucleolus of a cooperative game.
+
+    Parameters:
+    - v: Characteristic function, a dictionary where keys are coalitions (tuples) and values are worths.
+    - n: Number of players.
+
+    Returns:
+    - Nucleolus payoff vector.
+    """
+    # Players
+    n = game.grandcoalition.size
+    v = game.v
+    N = tuple(range(n))
+    coalitions = list(powerset(N))[1:]  # All non-empty subsets
+    
+    # Initialize LP constraints
+    A_eq = [np.ones(n)]  # Efficiency constraint: sum of payoffs equals v(N)
+    b_eq = [v(N)]
+    
+    A_ub = []  # For coalition excess constraints
+    b_ub = []
+    
+    # Individual rationality constraints
+    for i in range(n):
+        A_eq.append(np.zeros(n))
+        A_eq[-1][i] = 1
+        b_eq.append(v((i,)))
+    
+    # Add coalition constraints iteratively
+    x = np.full(n, v(N) / n)  # Start with equal division
+    
+    while True:
+        # Add excess constraints for all coalitions
+        A_ub = []
+        b_ub = []
+        for S in coalitions:
+            constraint = np.zeros(n)
+            for i in S:
+                constraint[i] = -1
+            A_ub.append(constraint)
+            b_ub.append(-v(S))
+        
+        # Add new variables to minimize the maximum excess
+        c = np.zeros(n + 1)
+        c[-1] = 1  # Objective: minimize the auxiliary variable
+        
+        A_ub = np.hstack([A_ub, -np.ones((len(A_ub), 1))])
+        A_eq = np.hstack([A_eq, np.zeros((len(A_eq), 1))])
+        
+        # Solve the LP
+        res = linprog(
+            c, 
+            A_ub=A_ub, b_ub=b_ub,
+            A_eq=A_eq, b_eq=b_eq,
+            bounds=(None, None)
+        )
+        
+        if res.success:
+            x_new = res.x[:-1]
+            z = res.x[-1]
+            
+            # Check termination condition
+            if np.isclose(z, 0, atol=1e-6):
+                break
+            
+            # Update constraints to refine solution
+            excesses = [v(S) - sum(x_new[i] for i in S) for S in coalitions]
+            max_excess = max(excesses)
+            max_coalitions = [coalitions[i] for i, e in enumerate(excesses) if np.isclose(e, max_excess)]
+            
+            for S in max_coalitions:
+                constraint = np.zeros(n)
+                for i in S:
+                    constraint[i] = -1
+                A_eq = np.vstack([A_eq, np.hstack([constraint, 0])])
+                b_eq.append(-v(S))
+            
+            x = x_new
+        else:
+            return ValueError("LP failed to converge")
+    
+    return x

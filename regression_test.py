@@ -3,7 +3,7 @@ import sklearn.datasets
 import sklearn.linear_model
 import sklearn.svm
 from fun import Game
-from xai import shapley_value, banzhaf_value, core_lp, kernel,nash_barg_solution
+from xai import shapley_value, banzhaf_value, core_lp, kernel,nash_barg_solution, nucleolus
 from prettytable import PrettyTable
 import sklearn
 from sklearn.model_selection import train_test_split
@@ -65,11 +65,10 @@ if __name__=="__main__":
         game = Game(row, f, f_train_mean, X_train)
         convex = False
         core_res, core_set = core_lp(game)
-        nucleolus = 0
         nash_barg_sol = 0
         w_nash_bargs_sol = 0
         egalitarian = 0
-        table.add_row([row.to_dict(),f(X_test.iloc[row_i:row_i+1]),game.is_superadditive(),shapley_value(game), kernel_shap,banzhaf_value(game), core_res, core_set,nucleolus, kernel(game), nash_barg_solution(game, [0]*desc_game.grandcoalition.size), nash_barg_solution(game, [f_train_mean]*desc_game.grandcoalition.size)])
+        table.add_row([row.to_dict(),f(X_test.iloc[row_i:row_i+1]),game.is_superadditive(),shapley_value(game), kernel_shap,banzhaf_value(game), core_res, core_set,nucleolus(game), kernel(game), nash_barg_solution(game, [0]*desc_game.grandcoalition.size), nash_barg_solution(game, [f_train_mean]*desc_game.grandcoalition.size)])
         if not(game.is_convex()) or not(game.is_superadditive()):
             red_rows.append(len(table.rows) - 1)
     
