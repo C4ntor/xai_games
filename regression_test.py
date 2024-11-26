@@ -56,11 +56,11 @@ if __name__=="__main__":
     table = PrettyTable()
     red_rows = []
     f_train_mean = y_train.mean()  #prev. was = 0
-    table.field_names = ["players-values", "f(x)"  ,"exact_shapley", "kernel_shap", "exact_banzhaf", "lp_core", "core_set","nucleolus", "kernel"]  #players-values is row in whole dataset: print(X_test.iloc[row_i])
+    table.field_names = ["players-values", "f(x)","super_additive","exact_shapley", "kernel_shap", "exact_banzhaf", "lp_core", "core_set","nucleolus", "kernel", "nash_barg_sol", "weight_nash_barg_sol"]  #players-values is row in whole dataset: print(X_test.iloc[row_i])
     for i in range(row_i,row_i+1):
         exSHAP = shap.KernelExplainer(g.predict, shap.sample(X_train,100))
         kernel_shap = exSHAP.shap_values(X_test.iloc[row_i:row_i+1])
-        shap.summary_plot(kernel_shap, X_test.iloc[row_i:row_i+1])
+        #shap.summary_plot(kernel_shap, X_test.iloc[row_i:row_i+1])
         row = X_test.iloc[row_i:row_i+1]
         game = Game(row, f, f_train_mean, X_train)
         convex = False
@@ -68,15 +68,13 @@ if __name__=="__main__":
         nucleolus = 0
         nash_barg_sol = 0
         w_nash_bargs_sol = 0
-        alpha = [0.3, 0.7]
         egalitarian = 0
-        table.add_row([row.to_dict(),f(X_test.iloc[row_i:row_i+1]), shapley_value(game), kernel_shap,banzhaf_value(game), core_res, core_set,nucleolus, kernel(game)])
+        table.add_row([row.to_dict(),f(X_test.iloc[row_i:row_i+1]),game.is_superadditive(),shapley_value(game), kernel_shap,banzhaf_value(game), core_res, core_set,nucleolus, kernel(game), nash_barg_solution(game, [0]*desc_game.grandcoalition.size), nash_barg_solution(game, [f_train_mean]*desc_game.grandcoalition.size)])
         if not(game.is_convex()) or not(game.is_superadditive()):
             red_rows.append(len(table.rows) - 1)
     
     print(table)
     df = pd.DataFrame(table.rows, columns=table.field_names)
     df.to_csv("out/table.csv", index=False)
-    print(kernel_shap)
 
    

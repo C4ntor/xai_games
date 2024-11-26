@@ -131,11 +131,6 @@ def core_lp(game, solutions_limit=10, epsilon = 1e-4):
 
 
 
-def nash_barg_rule(x,d, alpha):
-    product= 1
-    for i in range(len(d)):
-        product = product * (x[i] - d[i]) ** alpha[i]
-    return -product
 
 def constraint_barg(x,d):
     return x-d
@@ -146,39 +141,39 @@ def constraint_ind_rat(x,v):
 def constraint_eff(x, grandpayoff):
     return np.sum(x) - grandpayoff
     
-def nash_barg_solution(game, alpha=None):
+def nash_barg_solution(game, alpha):
     """
     Define an optimization problem, to find x s.t. weighted nash bargaining rule is maximized, sbj to constraints of efficiency (or feasibility), individual rationality and bargaining constraint.
     @game: (Game)
     @alpha: (float)  is the exponent of nash bargaining rule (expressing the power of each player). If None, the rule computes (symmetric) nash bargaining solution.
     """
-
-    d = np.array(game.disagreement_point)
-    v = [game.v(set({i})) for i in game.grandcoalition.N]
-    grandpayoff = game.v(game.grandcoalition.N)
-
-    if alpha==None:
-        alpha = [1/len(d)]*len(d)
-
-    initial_value = max(np.max(d), np.max(v)) + 1  #ensure x0 greater than d, v
-    x0 = initial_value * np.ones(len(d))
-
-    cons = [
-    {'type': 'ineq', 'fun': lambda x: constraint_ind_rat(x, v)},  # x_i >= v(i)
-    {'type': 'eq', 'fun': lambda x: constraint_eff(x, grandpayoff)},   # Sum of x_i = v(N)
-    {'type': 'ineq', 'fun': lambda x: constraint_barg(x, d)} # x>d
-    ]
+    n = len(game.disagreement_point)
+    d = game.disagreement_point
+    v = [(float(game.v(set({i}))[0])) for i in game.grandcoalition.N]
+    grandpayoff = game.v(game.grandcoalition.N)[0]
 
 
-    result = minimize(nash_barg_rule, x0, args=(d, alpha), constraints=cons)
+    def objective(x):
+        return -np.prod([(x[i] - d[i])**alpha[i] for i in range(n)])
 
+    # Define the constraint: the sum of the utilities must be equal to the total surplus
+    def constraint(x):
+        return np.sum(x) - grandpayoff
 
+    initial_guess = np.full(n, grandpayoff / n)
+    bounds = [(d[i], None) for i in range(n)]
+
+    # Define the constraint as a dictionary for scipy's minimize function
+    cons = {'type': 'eq', 'fun': constraint}
+    
+    # Use scipy's minimize function to find the Nash bargaining solution
+    result = minimize(objective, initial_guess, bounds=bounds, constraints=cons)
+    
     if result.success:
-        optimal_x = result.x
-        #optimal_value = -result.fun
-        return optimal_x
+        return result.x
     else:
-        return "ERR:"+result.message
+        return "Optimization failed"
+
 
 
 def kernel(game):
